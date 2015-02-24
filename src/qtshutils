@@ -1,0 +1,293 @@
+function _qset_check ()
+{
+    if [ -z "$QT5SRCDIR" -o -z "$QT5BUILDDIR" ]; then
+        [ "$1" != "-s" ] && caller 1 && echo "$1: No Qt src and build dirs set."
+        return 1
+    fi
+}
+
+export QT5BUILDSUFFIX=""
+export QT5SRCSUFFIX=""
+export QT5DIRPREFIX="qt5"
+export QT5CONFIGUREFLAGS="-opensource -confirm-license -developer-build -nomake examples -nomake tests"
+
+function qconfigure ()
+{
+	_qset_check || return 1
+	mkdir -p ${QT5BUILDDIR}/qtbase
+	cd ${QT5BUILDDIR}/qtbase
+	${QT5SRCDIR}/qtbase/configure ${QT5CONFIGUREFLAGS} $@
+}
+
+function qinit ()
+{
+	new_qtdir=${_QTSRCDIR}/${QT5DIRPREFIX}-$1
+	mkdir ${new_qtdir}
+	modules=$(ls ${_QTSRCDIR}/${QT5DIRPREFIX})
+	if [ "$2" ]; then
+		remote_branch=$2
+	else
+		remote_branch="dev"
+	fi
+	for module in ${modules}; do
+		echo
+		echo "Updating original ${module}..."
+		(cd ${_QTSRCDIR}/${QT5DIRPREFIX}/${module}; git fetch origin ${remote_branch})
+		echo "New ${module} workdir into ${new_qtdir}/${module}..."
+		git new-workdir ${_QTSRCDIR}/${QT5DIRPREFIX}/${module} ${new_qtdir}/${module} origin/${remote_branch}
+		pushd ${new_qtdir}/${module}
+		if [ "$(git branch --list $1)" ]; then
+			echo "Setting $1 to track origin/${remote_branch}..."
+			git branch --set-upstream-to=origin/${remote_branch} $1
+			echo "Checking out $1..."
+			git checkout $1
+		else
+			echo "Checking out $1 from origin/${remote_branch}..."
+			git checkout -b $1 origin/${remote_branch}
+		fi
+		popd > /dev/null
+		echo "${new_qtdir}/${module} is ready"
+	done;
+	qset $1
+}
+
+function qset ()
+{
+    if (( $# <= 1 )); then
+        set_src="Y"
+        set_build="Y"
+    else
+        set_src=""
+        set_build=""
+    fi
+    clear=""
+
+    set -- $(getopt sbc "$@")
+    while (( $# > 0 )); do
+        case $1 in
+        -s) set_src="Y";;
+        -b) set_build="Y";;
+        -c) clear="Y";;
+        --) shift; break;;
+        esac;
+        shift
+    done;
+
+    if [ -n "$1" ]; then
+        if [ -n "$set_src" ]; then
+            OLD_SRC_DIR=$QT5SRCDIR
+            export QT5SRCDIR=${_QTSRCDIR}/${QT5DIRPREFIX}-$1
+            _qreplacepath "$OLD_SRC_DIR" $QT5SRCDIR
+            export QT5SRCSUFFIX=$1
+        fi
+        if [ -n "$set_build" ]; then
+            OLD_BUILD_DIR=$QT5BUILDDIR
+            export QT5BUILDDIR=${_QTBUILDDIR}/${QT5DIRPREFIX}-$1-build
+            _qreplacepath "$OLD_BUILD_DIR" $QT5BUILDDIR
+            export QT5BUILDSUFFIX=$1
+        fi
+    elif [ -n "$clear" ]; then
+        if [ -n "$set_src" -a -n "$QT5SRCDIR" ]; then
+            _qreplacepath $QT5SRCDIR ""
+            export QT5SRCDIR=""
+            export QT5SRCSUFFIX=""
+        fi
+        if [ -n "$set_build" -a -n "$QT5BUILDDIR" ]; then
+            _qreplacepath $QT5BUILDDIR ""
+            export QT5BUILDDIR=""
+            export QT5BUILDSUFFIX=""
+        fi
+    else
+        echo QT5SRCDIR=$QT5SRCDIR
+        echo QT5BUILDDIR=$QT5BUILDDIR
+    fi
+    export PATH
+}
+
+function qset_prompt () 
+{
+    local src=$QT5SRCSUFFIX
+    local build=$QT5BUILDSUFFIX
+    [ -z $src -a -z $build ] && echo "" && return
+    [ -z $src ] && src="?"
+    [ -z $build ] && build="?"
+    [ $build = $src ] && echo " ($src)" && return
+    echo " ($src > $build)"
+}
+
+_QPATHSUFFIX="/qtbase/bin"
+
+function _qreplacepath ()
+{
+    if [ -z $1 ]; then
+        PATH=$2$_QPATHSUFFIX:$PATH
+    elif [ -z $2 ]; then
+        PATH=${PATH/"$1$_QPATHSUFFIX:"/""}
+    else
+        PATH=${PATH/"$1$_QPATHSUFFIX"/"$2$_QPATHSUFFIX"}
+    fi
+}
+
+function qcd ()
+{
+    _qset_check || return 1
+    src_dir_match=$(expr $PWD : $QT5SRCDIR)
+    build_dir_match=$(expr $PWD : $QT5BUILDDIR)
+
+    set -- $(getopt sb "$@")
+    while (( $# > 0 )); do
+        case $1 in
+        -s) src_dir_match=10000000;;
+        -b) build_dir_match=10000000;;
+        --) shift; break;;
+        esac;
+        shift
+    done;
+
+    if [ "$1" = "-" ]; then
+        if [ $src_dir_match -gt $build_dir_match ]; then
+            dest_dir=${PWD/$QT5SRCDIR/$QT5BUILDDIR}
+        else
+            dest_dir=${PWD/$QT5BUILDDIR/$QT5SRCDIR}
+        fi
+    else
+        if [ $src_dir_match -gt $build_dir_match ]; then
+            dest_dir=$QT5SRCDIR/$1
+        else
+            dest_dir=$QT5BUILDDIR/$1
+	    if [ ! -d "$dest_dir" ]; then
+		read -p "Target dir $dest_dir doesn't exist. Create? [Y/n] " answer
+		[ -z "$answer" -o "$answer" = "Y" -o "$answer" = "y" ] && mkdir -p $dest_dir || return
+	    fi
+        fi
+    fi
+
+    echo $dest_dir
+    cd $dest_dir
+}
+
+function qcd_completion ()
+{
+    [ $COMP_CWORD -ne 1 ] || qbuild_completion
+}
+
+complete -F qcd_completion qcd
+
+function qgit ()
+{
+    _qset_check || return 1
+    (qcd -s $1 && shift && git $@)
+}
+
+function qrebuild ()
+{
+    _qset_check || return 1
+    for module in $*; do
+        module_dir=$QT5BUILDDIR/$module
+        saved_config_status=""
+        if [ $module = "qtbase" ]; then
+            if [ -x $module_dir/config.status ]; then
+                saved_config_status=$(mktemp /tmp/qtbase.config.status.XXXXX)
+                cat $module_dir/config.status > $saved_config_status
+                chmod 755 $saved_config_status
+            else
+                [ -d $module_dir ] || mkdir -p $module_dir
+                echo "$FUNCNAME: I can't (re)configure qtbase. Exiting..."
+                return 1
+            fi
+        fi
+        (cd $QT5BUILDDIR && rm -rf $module)
+        (mkdir -p $module_dir || break
+        cd $module_dir
+        echo $PWD 
+        if [ -x "$saved_config_status" ]; then 
+            $saved_config_status || break
+            rm $saved_config_status
+        else
+            qmake $QT5SRCDIR/$module || break
+        fi
+        make || break)
+    done
+}
+
+function qbuild ()
+{
+    _qset_check || return 1
+    set -- $(getopt acqnd: "$@")
+    do_clean=""
+    do_qmake=""
+    do_make="Y"
+    build_subdir="/src"
+    while (( $# > 0 )); do
+        case $1 in
+            -a) build_subdir="";;
+            -c) do_clean="Y";;
+            -q) do_qmake="Y";;
+            -n) do_make="";;
+            -d) build_subdir="/$2"; shift;;
+            --) shift; break;;
+        esac;
+        shift
+    done;
+
+    for module in $*; do
+        if [ ! -d $QT5BUILDDIR/$module ]; then
+            echo "$FUNCNAME: No previous build for $module. Building from scratch..."
+            qrebuild $module
+        else
+            (cd $QT5BUILDDIR/$module$build_subdir && echo $PWD || return 1
+            [ -z $do_clean ] || make clean || return 1 
+            [ -z $do_qmake ] || make qmake || return 1 
+            [ -z $do_make ] || make || return 1)
+        fi
+    done
+}
+
+function qupdate ()
+{
+    _qset_check || return 1
+    set -- $(getopt sc:p "$@")
+    do_stash=""
+    do_unstash=""
+    co_branch=""
+    while (( $# > 0 )); do
+        case $1 in
+            -s) do_stash="Y";;
+            -c) co_branch="$2"; shift;;
+            -p) do_unstash="Y";;
+            --) shift; break;;
+        esac
+        shift
+    done
+
+    for module in $*; do
+        (cd $QT5SRCDIR/$module && echo $PWD && \
+        [ -z $do_stash ] || git stash && \
+        [ -z $co_branch ] || git checkout $co_branch && \
+        git pull --rebase ) || break;
+    done;
+}
+
+function qbuild_completion ()
+{
+    _qset_check -s || return 1
+    local cur=${COMP_WORDS[$COMP_CWORD]}
+    if [ "$cur" = "-" ]; then
+        COMPREPLY="-"
+    elif [ -z $cur ]; then
+        COMPREPLY=( `ls -d $QT5SRCDIR/qt* | xargs basename` )
+    elif (( $(expr $cur : "qt") >= 2 )); then
+        COMPREPLY=( `ls $QT5SRCDIR | grep ^$cur` )
+    else
+        COMPREPLY=( `ls $QT5SRCDIR | grep qt$cur` )
+    fi
+}
+
+alias qb=qbuild
+
+complete -F qbuild_completion qbuild
+complete -F qbuild_completion qb
+complete -F qbuild_completion qrebuild
+complete -F qbuild_completion qupdate
+
+alias qg=qgit
