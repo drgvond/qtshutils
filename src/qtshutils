@@ -10,6 +10,7 @@ export QT5BUILDSUFFIX=""
 export QT5SRCSUFFIX=""
 export QT5DIRPREFIX="qt5"
 export QT5CONFIGUREFLAGS="-opensource -confirm-license -developer-build -nomake examples -nomake tests"
+export _GIT_NEW_WORKDIR="/usr/local/share/git-core/contrib/workdir/git-new-workdir"
 
 function qconfigure ()
 {
@@ -34,7 +35,7 @@ function qinit ()
 		echo "Updating original ${module}..."
 		(cd ${_QTSRCDIR}/${QT5DIRPREFIX}/${module}; git fetch origin ${remote_branch})
 		echo "New ${module} workdir into ${new_qtdir}/${module}..."
-		git new-workdir ${_QTSRCDIR}/${QT5DIRPREFIX}/${module} ${new_qtdir}/${module} origin/${remote_branch}
+		${_GIT_NEW_WORKDIR} ${_QTSRCDIR}/${QT5DIRPREFIX}/${module} ${new_qtdir}/${module} origin/${remote_branch}
 		pushd ${new_qtdir}/${module}
 		if [ "$(git branch --list $1)" ]; then
 			echo "Setting $1 to track origin/${remote_branch}..."
