@@ -176,7 +176,7 @@ function qcd ()
             dest_dir=${PWD/$QT5BUILDDIR/$QT5SRCDIR}
         fi
     else
-        if [ $src_dir_match -gt $build_dir_match ]; then
+        if [ $src_dir_match -ge $build_dir_match ]; then
             dest_dir=$QT5SRCDIR/$1
         else
             dest_dir=$QT5BUILDDIR/$1
