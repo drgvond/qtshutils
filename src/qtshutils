@@ -28,7 +28,7 @@ function qinit ()
 	if [ "$2" ]; then
 		remote_branch=$2
 	else
-		remote_branch="dev"
+		remote_branch=$1
 	fi
 	for module in ${modules}; do
 		echo
