@@ -55,11 +55,13 @@ function qinit ()
 function qls ()
 {
     if [ "$1" = "-b" ]; then
-	dir=${_QTBUILDDIR}
+        dir=${_QTBUILDDIR}
+        exclude=""
     else
-	dir=${_QTSRCDIR}
+        dir=${_QTSRCDIR}
+        exclude="-v"
     fi
-    ls -d ${dir}/${QT5DIRPREFIX}* | sed -e s@${dir}/@@g
+    ls -d ${dir}/${QT5DIRPREFIX}* | sed -e s@${dir}/@@g | grep ${exclude} -e -build
 }
 
 function qset ()
