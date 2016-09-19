@@ -137,7 +137,7 @@ function qset_prompt ()
     [ -z $src ] && src="?"
     [ -z $build ] && build="?"
     [ $build = $src ] && echo " ($src)" && return
-    echo " ($src > $build)"
+    echo " ($src 🛠  $build)"
 }
 
 _QPATHSUFFIX="/qtbase/bin"
