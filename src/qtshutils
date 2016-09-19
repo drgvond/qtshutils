@@ -121,11 +121,15 @@ function qset_completion ()
 {
     local cur=${COMP_WORDS[$COMP_CWORD]}
     if [ "$cur" = "-" ]; then
-	COMPREPLY=( "-b" "-s" )
+        COMPREPLY=( "-b" "-s" )
     elif [ "$3" = "-b" ]; then
-	COMPREPLY=( `qls -b | sed -e s/${QT5DIRPREFIX}-//g` )
+        if [ -z "$2" ]; then
+            COMPREPLY=( `qls -b | sed -e s/${QT5DIRPREFIX}-//g | sed -e s/-build//g` )
+        else
+            COMPREPLY=( `qls -b | sed -e s/${QT5DIRPREFIX}-//g | sed -e s/-build//g | grep $2` )
+        fi
     else
-	COMPREPLY=( `qls | sed -e s/${QT5DIRPREFIX}-//g | grep -v qt5 | grep ^$cur` )
+        COMPREPLY=( `qls | sed -e s/${QT5DIRPREFIX}-//g | grep -v qt5 | grep ^$cur` )
     fi
 }
 
