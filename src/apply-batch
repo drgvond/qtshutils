@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+function suspend_to_shell {
+    echo "Type ^D to exit shell and continue patching."
+    PS1="$2: $1 > " $SHELL -i
+}
+
+function apply_patch {
+    patch_file=$1
+    current_repo_dir=$2
+    is_mail=$(head -1 $patch_file | grep "From")
+    matching_line=$(grep -m1 -e '^+++[[:blank:]]' $patch_file | tr -d "\n\r")
+    first_file=$(sed -E -e 's/\+\+\+[[:blank:]]+([^[:blank:]]+).*/\1/' <<< "$matching_line")
+    if [ -z "$first_file" ]; then
+        echo "Can't find blob in patch file. Skipping."
+        return
+    fi
+
+    needs_popd=""
+    p_number=1
+    if [[ $first_file =~ ^b/ ]]; then
+        file=$(sed -E -e 's:^b/(.*):\1:g' <<< $first_file)
+        if [ ! -f $file ]; then
+            git_file=$(git ls-files "*$first_file")
+            if [ -z "$git_file" ]; then
+                echo "Can't find $file. Skipping."
+                return
+            fi
+            dir=$(dirname $git_file)
+            echo "Assuming $(basename $file) is in $dir."
+            pushd $dir > /dev/null
+            needs_popd="yes"
+        fi
+    elif [[ $first_file =~ $current_repo_dir ]]; then
+        # Someone diff'ed a from parent dir. Get -p number
+        IFS="/" read -ra PARTS <<< "$first_file"
+        for (( i=0; i < ${#PARTS[@]}; i++)); do
+            [ "${PARTS[$i]}" = "$current_repo_dir" ] && break
+        done
+        p_number=$(( i + 1 ))
+        echo "Will try with -p$p_number."
+    else
+        echo "Don't know what to do with this. Skipping."
+        return
+    fi
+
+    if [ "$is_mail" ]; then
+        if git am $patch_file; then
+            echo "Success!"
+        else
+            echo "git am failed on $(basename $patch_file)"
+            read -p "Abort or enter shell? [A/s]" answer
+            if [ -z "$answer" -o "$answer" = "A" -o "$answer" = "a" ]; then
+                git am --abort
+            else
+                suspend_to_shell $(basename $patch_file) $current_repo_dir
+            fi
+        fi
+    else
+        if git apply -p${p_number} $patch_file; then
+            git commit -a -m "Apply $(basename $patch_file)"
+            echo "Success!"
+        else
+            echo "git apply failed on $(basename $patch_file)"
+            read -p "Reset or enter shell? [R/s]" answer
+            if [ -z "$answer" -o "$answer" = "R" -o "$answer" = "r" ]; then
+                git reset --hard
+            else
+                suspend_to_shell $(basename $patch_file) $current_repo_dir
+            fi
+        fi
+    fi
+
+    [ $needs_popd ] && popd > /dev/null
+}
+
+dir="$*"
+if [ ! -d "$dir" ]; then
+    echo "Usage: $(basename $0) <dir>"
+    echo "  Will try to apply all the patches found in dir."
+    echo "  Make sure to call this from the repo's top-level dir."
+    exit 1
+fi
+
+current_repo_dir=$(basename $PWD)
+for patch_file in $(ls $dir/*.patch); do
+    echo "Processing $(basename $patch_file)... "
+    apply_patch $patch_file $current_repo_dir
+    echo
+done
