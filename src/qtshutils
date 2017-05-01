@@ -216,11 +216,15 @@ function qrebuild ()
     for module in $*; do
         module_dir=$QT5BUILDDIR/$module
         saved_config_status=""
+        saved_config_opt=""
         if [ $module = "qtbase" ]; then
             if [ -x $module_dir/config.status ]; then
                 saved_config_status=$(mktemp /tmp/qtbase.config.status.XXXXX)
-                cat $module_dir/config.status > $saved_config_status
-                chmod 755 $saved_config_status
+                cp -p $module_dir/config.status $saved_config_status
+                if [ -f $module_dir/config.opt ]; then
+                    saved_config_opt=$(mktemp /tmp/qtbase.config.opt.XXXXX)
+                    cat $module_dir/config.opt > $saved_config_opt
+                fi
             else
                 [ -d $module_dir ] || mkdir -p $module_dir
                 echo "$FUNCNAME: I can't (re)configure qtbase. Exiting..."
@@ -231,9 +235,12 @@ function qrebuild ()
         (mkdir -p $module_dir || break
         cd $module_dir
         echo $PWD 
-        if [ -x "$saved_config_status" ]; then 
-            $saved_config_status || break
-            rm $saved_config_status
+        if [ -x "$saved_config_status" ]; then
+            if [ -f "$saved_config_opt" ]; then
+                mv $saved_config_opt $module_dir/config.opt
+            fi
+            mv $saved_config_status $module_dir/config.status
+            $module_dir/config.status || break
         else
             qmake $QT5SRCDIR/$module || break
         fi
