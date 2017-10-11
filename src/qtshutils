@@ -212,6 +212,9 @@ function qgit ()
 
 function qrebuild ()
 {
+    read -p "Are you sure? [y/N] " answer
+    [ -z "$answer" -o "$answer" = "N" -o "$answer" = "n" ] && return 0
+
     _qset_check || return 1
     for module in $*; do
         module_dir=$QT5BUILDDIR/$module
