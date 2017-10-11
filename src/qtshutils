@@ -14,42 +14,42 @@ export _GIT_NEW_WORKDIR="/usr/local/share/git-core/contrib/workdir/git-new-workd
 
 function qconfigure ()
 {
-	_qset_check || return 1
-	mkdir -p ${QT5BUILDDIR}/qtbase
-	cd ${QT5BUILDDIR}/qtbase
-	${QT5SRCDIR}/qtbase/configure ${QT5CONFIGUREFLAGS} $@
+    _qset_check || return 1
+    mkdir -p ${QT5BUILDDIR}/qtbase
+    cd ${QT5BUILDDIR}/qtbase
+    ${QT5SRCDIR}/qtbase/configure ${QT5CONFIGUREFLAGS} $@
 }
 
 function qinit ()
 {
-	new_qtdir=${_QTSRCDIR}/${QT5DIRPREFIX}-$1
-	mkdir ${new_qtdir}
-	modules=$(ls ${_QTSRCDIR}/${QT5DIRPREFIX})
-	if [ "$2" ]; then
-		remote_branch=$2
-	else
-		remote_branch=$1
-	fi
-	for module in ${modules}; do
-		echo
-		echo "Updating original ${module}..."
-		(cd ${_QTSRCDIR}/${QT5DIRPREFIX}/${module}; git fetch origin ${remote_branch})
-		echo "New ${module} workdir into ${new_qtdir}/${module}..."
-		${_GIT_NEW_WORKDIR} ${_QTSRCDIR}/${QT5DIRPREFIX}/${module} ${new_qtdir}/${module} origin/${remote_branch}
-		pushd ${new_qtdir}/${module}
-		if [ "$(git branch --list $1)" ]; then
-			echo "Setting $1 to track origin/${remote_branch}..."
-			git branch --set-upstream-to=origin/${remote_branch} $1
-			echo "Checking out $1..."
-			git checkout $1
-		else
-			echo "Checking out $1 from origin/${remote_branch}..."
-			git checkout -b $1 origin/${remote_branch}
-		fi
-		popd > /dev/null
-		echo "${new_qtdir}/${module} is ready"
-	done;
-	qset $1
+    new_qtdir=${_QTSRCDIR}/${QT5DIRPREFIX}-$1
+    mkdir ${new_qtdir}
+    modules=$(ls ${_QTSRCDIR}/${QT5DIRPREFIX})
+    if [ "$2" ]; then
+        remote_branch=$2
+    else
+        remote_branch=$1
+    fi
+    for module in ${modules}; do
+        echo
+        echo "Updating original ${module}..."
+        (cd ${_QTSRCDIR}/${QT5DIRPREFIX}/${module}; git fetch origin ${remote_branch})
+        echo "New ${module} workdir into ${new_qtdir}/${module}..."
+        ${_GIT_NEW_WORKDIR} ${_QTSRCDIR}/${QT5DIRPREFIX}/${module} ${new_qtdir}/${module} origin/${remote_branch}
+        pushd ${new_qtdir}/${module}
+        if [ "$(git branch --list $1)" ]; then
+            echo "Setting $1 to track origin/${remote_branch}..."
+            git branch --set-upstream-to=origin/${remote_branch} $1
+            echo "Checking out $1..."
+            git checkout $1
+        else
+            echo "Checking out $1 from origin/${remote_branch}..."
+            git checkout -b $1 origin/${remote_branch}
+        fi
+        popd > /dev/null
+        echo "${new_qtdir}/${module} is ready"
+    done;
+    qset $1
 }
 
 function qls ()
@@ -186,10 +186,10 @@ function qcd ()
             dest_dir=$QT5SRCDIR/$1
         else
             dest_dir=$QT5BUILDDIR/$1
-	    if [ ! -d "$dest_dir" ]; then
-		read -p "Target dir $dest_dir doesn't exist. Create? [Y/n] " answer
-		[ -z "$answer" -o "$answer" = "Y" -o "$answer" = "y" ] && mkdir -p $dest_dir || return
-	    fi
+            if [ ! -d "$dest_dir" ]; then
+                read -p "Target dir $dest_dir doesn't exist. Create? [Y/n] " answer
+                [ -z "$answer" -o "$answer" = "Y" -o "$answer" = "y" ] && mkdir -p $dest_dir || return
+            fi
         fi
     fi
 
